@@ -13,7 +13,23 @@ find_package(std_msgs REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(example_interfaces REQUIRED)
 
+rosidl_generate_interfaces($(PROJECT_NAME)
+  "srv/myservice.srv"
+)
+
+rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
+
 add_service_files(FILES myservice.srv)
+
+add_executable(service_exam_server src/service_exam_server.cpp)
+ament_target_dependencies(service_exam_server rclcpp)
+target_link_libraries(service_exam_server "${cpp_typesupport_target}")
+add_dependencies(service_exam_server ${PROJECT_NAME}__cpp)
+
+add_executable(service_exam_client src/service_exam_client.cpp)
+ament_target_dependencies(service_exam_client rclcpp)
+target_link_libraries(service_exam_client "${cpp_typesupport_target}")
+add_dependencies(service_exam_client ${PROJECT_NAME}__cpp)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
