@@ -15,16 +15,16 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
-# find dependencies
+
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_action REQUIRED)
-find_package(action_msgs REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
+find_package(action_msgs REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
-  "action/Primenumber.action"
-  DEPENDENCEIS action_msgs
+  "action/Primenumber.action"   # ← 실제 파일이 여기 있어야 합니다
+  DEPENDENCIES action_msgs      # ← DEPENDENCIES (정확한 스펠링)
 )
 
 ament_export_dependencies(rosidl_default_runtime)
@@ -39,11 +39,12 @@ ament_target_dependencies(action_exam_client rclcpp rclcpp_action)
 add_dependencies(action_exam_client ${PROJECT_NAME}__rosidl_generator_cpp)
 rosidl_target_interfaces(action_exam_client ${PROJECT_NAME} "rosidl_typesupport_cpp")
 
-install(TARGETS 
+install(TARGETS
   action_exam_server
   action_exam_client
   DESTINATION lib/${PROJECT_NAME}
 )
+
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
@@ -57,3 +58,4 @@ if(BUILD_TESTING)
 endif()
 
 ament_package()
+
