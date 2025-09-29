@@ -28,8 +28,8 @@ add_dependencies(service_exam_client2 ${PROJECT_NAME}__rosidl_generator_cpp)
 rosidl_target_interfaces(service_exam_client2 ${PROJECT_NAME} "rosidl_typesupport_cpp")
 
 install(TARGETS
-  service_exam_server
-  service_exam_client
+  service_exam_server2
+  service_exam_client2
   DESTINATION lib/${PROJECT_NAME}
 )
 
