@@ -5,7 +5,8 @@
 #include <memory>
 
 using namespace std::chrono_literals;
-using MyService = service_exam::srv::MyService;
+
+using MyService = service_exam2::srv::MyService;
 
 int main(int argc, char **argv)
 {
