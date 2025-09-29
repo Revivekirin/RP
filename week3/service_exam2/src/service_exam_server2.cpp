@@ -41,7 +41,7 @@ private:
       case PLUS:             out = a + b; break;
       case MINUS:            out = a - b; break;
       case MULTIPLICATION:   out = a * b; break;
-      case DIVISION:         out = (b != 0 ? a / b : 0); break;  // 정수 나눗셈
+      case DIVISION:         out = (b != 0 ? a / b : 0); break;  
       default:               out = 0; break;
     }
 
