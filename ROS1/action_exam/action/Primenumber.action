@@ -1,0 +1,8 @@
+#goal definition
+int32 target
+---
+#result definition
+int32[] sequence
+---
+#feedback
+int32 cur_num
