@@ -15,43 +15,42 @@
 // usually used for block locations or target locations
 class Location {
 public:
-  double x;
-  double y;
+  double x{0.0};
+  double y{0.0};
   Location() = default;
   Location(double x_value, double y_value) : x(x_value), y(y_value) {}
 };
 
-// Block class definition for representing blocks entities
 class Block {
 public:
-  double width;
-  double length;
-  double height;
-  double radius;
+  double width{0.05};
+  double length{0.05};
+  double height{0.06};
+  double radius{0.0}; 
   Location location;
   Block() = default;
-  Block(double width_value, double length_value, double height_value, double radius_value, Location location_value)
-    : width(width_value), length(length_value), height(height_value), radius(radius_value), location(location_value) {}
+  Block(double width_value, double length_value, double height_value, double radius_value, Location loc)
+    : width(width_value), length(length_value), height(height_value), radius(radius_value), location(loc) {}
 };
 
 class Cylinder {
 public:
- double radius;
- double height;
- Location location;
- Cylinder() = default;
-  Cylinder(double radius_value, double height_value, Location location_value)
-    : radius(radius_value), height(height_value), location(location_value) {}
+  double radius{0.025};
+  double height{0.06};
+  Location location;
+  Cylinder() = default;
+  Cylinder(double radius_value, double height_value, Location loc)
+    : radius(radius_value), height(height_value), location(loc) {}
 };
 
-class Trinangle {
+class Triangle {
 public:
- double bottom;
- double height;
- Location location;
- Trinangle() = default;
-  Trinangle(double bottom_value, double height_value, Location location_value)
-    : bottom(bottom_value), height(height_value), location(location_value) {}
+  double bottom{0.05}; 
+  double height{0.06};  
+  Location location;
+  Triangle() = default;
+  Triangle(double bottom_value, double height_value, Location loc)
+    : bottom(bottom_value), height(height_value), location(loc) {}
 };
 
 // Function to convert position and orientation values to a Pose message
@@ -140,6 +139,35 @@ void waypoint_sample(moveit::planning_interface::MoveGroupInterface &move_group_
   move_group_interface.execute(cartesian_plan);
 }
 
+// Common parameters
+struct GraspParameters {
+  double z_offset = 0.40;       // Height above the block to approach
+  double tcp_to_tip = 0.185;  // Distance from the tool center point to the gripper tip
+  double open_width = 0.07;    // Gripper open width
+  double close_width = 0.025;    // Gripper close width
+  double roll = M_PI, pitch = 0.0, yaw = -M_PI/4; // Orientation angles         
+};
+
+GraspParameters grasp_for_block(const Block& block){
+  GraspParameters params;
+  params.close_width = std::max(0.018, std::min(0.035, block.width - 0.01));
+  params.yaw = -M_PI/4;
+  return params;
+}
+
+GraspParam grasp_for_cylinder(const Cylinder& cylinder) {
+  GraspParam params;
+  params.close_width = std::max(0.018, std::min(0.030, 2.0*cylinder.radius - 0.010));
+  params.yaw = 0.0;
+  return params;
+}
+GraspParam grasp_for_triangle(const Triangle& triangle) {
+  GraspParam params;
+  params.close_width = std::max(0.018, std::min(0.030, triangle.bottom - 0.010));
+  params.yaw = -M_PI/6.0;
+  return params;
+}
+
 class PickAndLiftNode : public rclcpp::Node {
 public:
   PickAndLiftNode(const rclcpp::NodeOptions & node_options = rclcpp::NodeOptions()) 
@@ -177,25 +205,57 @@ public:
     initial_pose(arm);
     close_gripper(gripper, 0.0);
 
-    Block block[] = {
-      Block(0.05, 0.05, 0.06, 0, Location(0.4, 0.1)), // Block 1
-      Block(0.05, 0.05, 0.06, 0, Location(0.4, 0.0)), // Block 2
-      Block(0.05, 0.025, 0.06, 0, Location(0.4, -0.1)), // Block 3
-      Block(0.05, 0.05, 0.07, 0, Location(0.5, -0.1)), // Block 4
-      Block(0.05, 0.05, 0.08, 0, Location(0.5, 0.1)), // Block 5
-      Block(0.05, 0.05, 0.090, 0, Location(0.6, 0.0)), // Block 6
+    std::vector<Location> init_xy = {
+      {0.4,  0.1}, {0.4,  0.0}, {0.4, -0.1}, {0.5,  0.1},
+      {0.5,  0.0}, {0.5, -0.1}, {0.6,  0.1}, {0.6,  0.0}
+    };
+    std::vector<Location> goal_xy = {
+      {-0.15, 0.45}, {-0.15, 0.55}, { 0.15, 0.45}, { 0.05, 0.55},
+      {-0.05, 0.45}, {-0.05, 0.55}, { 0.05, 0.45}, { 0.15, 0.55}
     };
 
-    Cylinder cylinder[] = {
-       Cylinder(0.025, 0.06, 0., 0, Location(0.5, 0.0)), // Block 2
-    };
+    Block   b1(0.05, 0.05, 0.06, 0.0, init_xy[0]);
+    Block   b2(0.05, 0.05, 0.06, 0.0, init_xy[1]);
+    Block   b3(0.05, 0.025,0.06, 0.0, init_xy[2]);
+    Block   b4(0.05, 0.05, 0.07, 0.0, init_xy[3]);
+    Cylinder c1(0.025, 0.06, init_xy[4]);
+    Block   b5(0.05, 0.05, 0.08, 0.0, init_xy[5]); 
+    Triangle t1(0.05, 0.06, init_xy[6]);
+    Block   b6(0.05, 0.05, 0.090,0.0, init_xy[7]); 
 
-    Trinangle triangle[] = {
-       Trinangle(0.05, 0.05, 0.06, 0, Location(0.6, 0.1)), // Block 2
-    };
+    // 1: b1
+    lift_block(node, arm, gripper, b1, 0.0243);
+    place_block(node, arm, gripper, goal_xy[0]);
 
-    lift_block(node_ptr, arm, gripper, block[0], 0.0243);
-    place_block(node_ptr, arm, gripper, Location(block[1].location.x, block[1].location.y));
+    // 2: b2
+    lift_block(node, arm, gripper, b2, 0.0243);
+    place_block(node, arm, gripper, goal_xy[1]);
+
+    // 3: b3
+    lift_block(node, arm, gripper, b3, 0.0243);
+    place_block(node, arm, gripper, goal_xy[2]);
+
+    // 4: b4
+    lift_block(node, arm, gripper, b4, 0.0243);
+    place_block(node, arm, gripper, goal_xy[3]);
+
+    // 5: c1
+    lift_cylinder(node, arm, gripper, c1);
+    place_cylinder(node, arm, gripper, goal_xy[4]);
+
+    // 6: b5
+    lift_block(node, arm, gripper, b5, 0.0243);
+    place_block(node, arm, gripper, goal_xy[5]);
+
+    // 7: t1
+    lift_triangle(node, arm, gripper, t1);
+    place_triangle(node, arm, gripper, goal_xy[6]);
+
+    // 8: b6
+    lift_block(node, arm, gripper, b6, 0.0243);
+    place_block(node, arm, gripper, goal_xy[7]);
+
+    initial_pose(arm);
   }
 
 private:
@@ -204,6 +264,7 @@ private:
                   moveit::planning_interface::MoveGroupInterface& gripper_interface,
                   Block block, double value) {
 
+    auto gp = grasp_for_block(block);
     geometry_msgs::msg::Pose target_pose1 = list_to_pose(block.location.x, block.location.y, 0.4, M_PI, 0, -M_PI/4);
     geometry_msgs::msg::Pose target_pose2 = list_to_pose(block.location.x, block.location.y, block.height + 0.185, M_PI, 0, -M_PI/4);
     
@@ -217,7 +278,7 @@ private:
 
     waypoints2.push_back(target_pose2);
     waypoint_sample(arm_interface, node, waypoints2);
-    close_gripper(gripper_interface, value);
+    close_gripper(gripper_interface, gp.close_width);
 
     waypoints3.push_back(target_pose1);
     waypoint_sample(arm_interface, node, waypoints3);
@@ -227,9 +288,11 @@ private:
                    moveit::planning_interface::MoveGroupInterface& arm_interface,
                    moveit::planning_interface::MoveGroupInterface& gripper_interface,
                    Location location) {
-
-    geometry_msgs::msg::Pose target_pose1 = list_to_pose(location.x, location.y, 0.4, M_PI, 0, -M_PI/4);
-    geometry_msgs::msg::Pose target_pose2 = list_to_pose(location.x, location.y, 0.125 + 0.185, M_PI, 0, -M_PI/4);
+    
+    const double case_top_z = 0.03;
+    GraspParameters gp;
+    geometry_msgs::msg::Pose target_pose1 = list_to_pose(location.x, location.y, gp.z_clear, gp.roll, gp.pitch, gp.yaw);
+    geometry_msgs::msg::Pose target_pose2 = list_to_pose(location.x, location.y, case_top_z + 0.185, gp.roll, gp.pitch, gp.yaw);
     
     std::vector<geometry_msgs::msg::Pose> waypoints1;
     std::vector<geometry_msgs::msg::Pose> waypoints2;
@@ -243,6 +306,71 @@ private:
     waypoint_sample(arm_interface, node, waypoints2);
 
   }
+
+    // 원기둥
+  void lift_cylinder(rclcpp::Node::SharedPtr node,
+                    moveit::planning_interface::MoveGroupInterface& arm,
+                    moveit::planning_interface::MoveGroupInterface& gripper,
+                    const Cylinder& cyl)
+  {
+    auto gp = grasp_for_cylinder(cyl);
+    auto approach = list_to_pose(cyl.location.x, cyl.location.y, gp.z_clear, gp.roll, gp.pitch, gp.yaw);
+    auto descend  = list_to_pose(cyl.location.x, cyl.location.y, cyl.height/2.0 + gp.tcp_to_tip, gp.roll, gp.pitch, gp.yaw);
+
+    waypoint_sample(arm, node, {approach});
+    open_gripper(gripper);
+    waypoint_sample(arm, node, {approach, descend});
+    close_gripper(gripper, gp.close_width);
+    waypoint_sample(arm, node, {descend, approach});
+  }
+  void place_cylinder(rclcpp::Node::SharedPtr node,
+                      moveit::planning_interface::MoveGroupInterface& arm,
+                      moveit::planning_interface::MoveGroupInterface& gripper,
+                      Location location)
+  {
+    const double case_top_z = 0.03;
+    GraspParam gp = GraspParam{};
+    gp.yaw = 0.0;
+    auto approach = list_to_pose(location.x, location.y, gp.z_clear, gp.roll, gp.pitch, gp.yaw);
+    auto descend  = list_to_pose(location.x, location.y, case_top_z + gp.tcp_to_tip, gp.roll, gp.pitch, gp.yaw);
+
+    waypoint_sample(arm, node, {approach, descend});
+    open_gripper(gripper);
+    waypoint_sample(arm, node, {descend, approach});
+  }
+
+  // 삼각기둥
+  void lift_triangle(rclcpp::Node::SharedPtr node,
+                    moveit::planning_interface::MoveGroupInterface& arm,
+                    moveit::planning_interface::MoveGroupInterface& gripper,
+                    const Triangle& tri)
+  {
+    auto gp = grasp_for_triangle(tri);
+    auto approach = list_to_pose(tri.location.x, tri.location.y, gp.z_clear, gp.roll, gp.pitch, gp.yaw);
+    auto descend  = list_to_pose(tri.location.x, tri.location.y, tri.height/2.0 + gp.tcp_to_tip, gp.roll, gp.pitch, gp.yaw);
+
+    waypoint_sample(arm, node, {approach});
+    open_gripper(gripper);
+    waypoint_sample(arm, node, {approach, descend});
+    close_gripper(gripper, gp.close_width);
+    waypoint_sample(arm, node, {descend, approach});
+  }
+  void place_triangle(rclcpp::Node::SharedPtr node,
+                      moveit::planning_interface::MoveGroupInterface& arm,
+                      moveit::planning_interface::MoveGroupInterface& gripper,
+                      Location location)
+  {
+    const double case_top_z = 0.03;
+    GraspParam gp = GraspParam{};
+    gp.yaw = -M_PI/6.0;
+    auto approach = list_to_pose(location.x, location.y, gp.z_clear, gp.roll, gp.pitch, gp.yaw);
+    auto descend  = list_to_pose(location.x, location.y, case_top_z + gp.tcp_to_tip, gp.roll, gp.pitch, gp.yaw);
+
+    waypoint_sample(arm, node, {approach, descend});
+    open_gripper(gripper);
+    waypoint_sample(arm, node, {descend, approach});
+  }
+
 };
 
 int main(int argc, char** argv) {
