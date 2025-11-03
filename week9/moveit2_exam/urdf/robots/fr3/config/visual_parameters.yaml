@@ -1,0 +1,81 @@
+mesh_files:
+  link0:
+    visual:
+      mesh:
+        package: moveit2_exam
+        path: meshes/robot_arms/fr3/visual/link0.dae
+      material: "symphony_white"
+    collision:
+      mesh:
+        package: moveit2_exam
+        path: meshes/robot_arms/fr3/collision/link0.stl
+  link1:
+    visual:
+      mesh:
+        package: moveit2_exam
+        path: meshes/robot_arms/fr3/visual/link1.dae
+      material: "symphony_white"
+    collision:
+      mesh:
+        package: moveit2_exam
+        path: meshes/robot_arms/fr3/collision/link1.stl
+  link2:
+    visual:
+      mesh:
+        package: moveit2_exam
+        path: meshes/robot_arms/fr3/visual/link2.dae
+      material: "symphony_white"
+    collision:
+      mesh:
+        package: moveit2_exam
+        path: meshes/robot_arms/fr3/collision/link2.stl
+  link3:
+    visual:
+      mesh:
+        package: moveit2_exam
+        path: meshes/robot_arms/fr3/visual/link3.dae
+      material: "symphony_white"
+    collision:
+      mesh:
+        package: moveit2_exam
+        path: meshes/robot_arms/fr3/collision/link3.stl
+  link4:
+    visual:
+      mesh:
+        package: moveit2_exam
+        path: meshes/robot_arms/fr3/visual/link4.dae
+      material: "symphony_white"
+    collision:
+      mesh:
+        package: moveit2_exam
+        path: meshes/robot_arms/fr3/collision/link4.stl
+  link5:
+    visual:
+      mesh:
+        package: moveit2_exam
+        path: meshes/robot_arms/fr3/visual/link5.dae
+      material: "symphony_white"
+    collision:
+      mesh:
+        package: moveit2_exam
+        path: meshes/robot_arms/fr3/collision/link5.stl
+  link6:
+    visual:
+      mesh:
+        package: moveit2_exam
+        path: meshes/robot_arms/fr3/visual/link6.dae
+      material: "symphony_white"
+    collision:
+      mesh:
+        package: moveit2_exam
+        path: meshes/robot_arms/fr3/collision/link6.stl
+  link7:
+    visual:
+      mesh:
+        package: moveit2_exam
+        path: meshes/robot_arms/fr3/visual/link7.dae
+      material: "symphony_white"
+    collision:
+      mesh:
+        package: moveit2_exam
+        path: meshes/robot_arms/fr3/collision/link7.stl

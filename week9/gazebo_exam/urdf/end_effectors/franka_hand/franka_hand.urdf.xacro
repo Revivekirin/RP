@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://wiki.ros.org/xacro" name="franka_hand">
+    <!-- parameters -->
+    <xacro:arg name="use_fake_hardware" default="true" />
+
+    <!-- Import macros -->
+    <xacro:include filename="$(find gazebo_exam)/urdf/end_effectors/franka_hand/franka_hand_macro.xacro" />
+
+    <!-- <link name="world" /> -->
+    <xacro:franka_hand name="FrankaHandHardwareInterface" prefix="" parent="link7" use_fake_hardware="$(arg use_fake_hardware)">
+        <origin xyz="0 0 0" rpy="0 0 0" />
+    </xacro:franka_hand>
+</robot>

@@ -1,0 +1,162 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://wiki.ros.org/xacro">
+    <xacro:macro name="franka_hand" params="
+        name
+        prefix
+        parent
+        *origin
+        sim_gazebo:=false
+        sim_isaac:=false
+        isaac_joint_commands:=/isaac_joint_commands
+        isaac_joint_states:=/isaac_joint_states
+        use_fake_hardware:=false
+        mock_sensor_commands:=false
+        include_ros2_control:=true
+        com_port:=/dev/ttyUSB0">
+
+        <!-- ros2 control include -->
+        <xacro:include filename="$(find moveit2_exam)/urdf/end_effectors/franka_hand/franka_hand_ros2_control.xacro" />
+        <!-- if we are simulating or directly communicating with the gripper we need a ros2 control instance -->
+        <xacro:if value="${include_ros2_control}">
+            <xacro:franka_hand_ros2_control
+                name="${name}" prefix="${prefix}"
+                sim_gazebo="${sim_gazebo}"
+                sim_isaac="${sim_isaac}"
+                isaac_joint_commands="${isaac_joint_commands}"
+                isaac_joint_states="${isaac_joint_states}"
+                use_fake_hardware="${use_fake_hardware}"
+                mock_sensor_commands="${mock_sensor_commands}"
+                com_port="${com_port}"/>
+        </xacro:if>
+
+        <link name="${prefix}hand">
+            <visual>
+                <geometry>
+                    <mesh filename="file://$(find moveit2_exam)/meshes/robot_ee/franka_hand_white/visual/hand.dae" scope="parent"/>
+                </geometry>
+            </visual>
+            <collision>
+                <geometry>
+                    <mesh filename="file://$(find moveit2_exam)/meshes/robot_ee/franka_hand_white/collision/hand.stl" scope="parent"/>
+                </geometry>
+            </collision>
+            <inertial>
+                <origin xyz="-0.0000376 0.0119128 0.0207260" rpy="0 0 0" />
+                <mass value="0.6544" />
+                <inertia ixx="0.00186" iyy="0.00030" izz="0.00174" ixy="0.00000" ixz="0.00000" iyz="-0.00002" />
+            </inertial>
+        </link>
+
+        <link name="${prefix}left_finger">
+            <visual>
+                <geometry>
+                    <mesh filename="file://$(find moveit2_exam)/meshes/robot_ee/franka_hand_white/visual/finger.dae" scope="parent"/>
+                </geometry>
+            </visual>
+            <!-- <collision name="left_finger_collision"> -->
+            <collision>
+                <geometry>
+                    <!-- <mesh filename="file://$(find moveit2_exam)/meshes/robot_ee/franka_hand_white/visual/finger.dae" scope="parent"/> -->
+                    <mesh filename="file://$(find moveit2_exam)/meshes/robot_ee/franka_hand_white/collision/finger.stl" scope="parent"/>
+                </geometry>
+            </collision>
+            <inertial>
+                <origin xyz="0 0.0152850 0.0219675" rpy="0 0 0" />
+                <mass value="0.0291" />
+                <inertia ixx="0.00000849" iyy="0.00000853" izz="0.00000177" ixy="0.00000000" ixz="0.00000000" iyz="-0.00000106" />
+            </inertial>
+            <!-- <sensor name="left_finger_contact" type="contact">
+                <always_on>true</always_on>
+                <update_rate>50</update_rate>
+                <contact>
+                    <collision>left_finger_collision</collision>
+                </contact>
+            </sensor> -->
+        </link>
+
+        <link name="${prefix}right_finger">
+            <visual>
+                <geometry>
+                    <mesh filename="file://$(find moveit2_exam)/meshes/robot_ee/franka_hand_white/visual/finger.dae" scope="parent"/>
+                </geometry>
+            </visual>
+            <!-- <collision name="right_finger_collision"> -->
+            <collision>
+                <geometry>
+                    <mesh filename="file://$(find moveit2_exam)/meshes/robot_ee/franka_hand_white/visual/finger.dae" scope="parent"/>
+                </geometry>
+            </collision>
+            <inertial>
+                <origin xyz="0 0.0152850 0.0219675" rpy="0 0 0" />
+                <mass value="0.0291" />
+                <inertia ixx="0.00000849" iyy="0.00000853" izz="0.00000177" ixy="0.00000000" ixz="0.00000000" iyz="-0.00000106" />
+            </inertial>
+            <!-- <sensor name="right_finger_contact" type="contact">
+                <always_on>true</always_on>
+                <update_rate>50</update_rate>
+                <contact>
+                    <collision>right_finger_collision</collision>
+                </contact>
+            </sensor> -->
+        </link>
+
+        <joint name="${prefix}hand_joint" type="fixed">
+            <parent link="${parent}" />
+            <child link="${prefix}hand" />
+            <xacro:insert_block name="origin" />
+        </joint>
+        <joint name="${prefix}finger_joint1" type="prismatic">
+            <parent link="${prefix}hand" />
+            <child link="${prefix}left_finger" />
+            <origin xyz="0 0 0.0584" rpy="0 0 0" />
+            <axis xyz="0 1 0" />
+            <limit effort="100" lower="0.0" upper="0.04" velocity="0.2" />
+            <dynamics damping="0.3" />
+        </joint>
+        <joint name="${prefix}finger_joint2" type="prismatic">
+            <parent link="${prefix}hand" />
+            <child link="${prefix}right_finger" />
+            <origin xyz="0 0 0.0584" rpy="0 0 ${pi}" />
+            <axis xyz="0 1 0" />
+            <limit effort="100" lower="0.0" upper="0.04" velocity="0.2" />
+            <mimic joint="${prefix}finger_joint1" />
+            <dynamics damping="0.3" />
+        </joint>
+
+        <xacro:if value="${sim_gazebo}">
+            <link name="random1"/>
+            <joint name="${prefix}finger_joint2_mimic" type="fixed">
+                <parent link="world" />
+                <child link="random1" />
+            </joint>
+        </xacro:if>
+
+        <!-- <gazebo reference="left_finger">
+            <mu1>1.7</mu1>
+            <mu2>1.7</mu2>
+        </gazebo>
+        <gazebo reference="right_finger">
+            <mu1>1.7</mu1>
+            <mu2>1.7</mu2>
+        </gazebo> -->
+
+        <gazebo>
+            <plugin name="mimic_joint_plugin" filename="libmimic_joint_plugin.so">
+                <joint1>finger_joint1</joint1>
+                <joint2>finger_joint2</joint2>
+                <multiplier>1.0</multiplier>
+                <offset>0.0</offset>
+            </plugin>
+            <plugin name="gazebo_grasp_fix" filename="libgazebo_grasp_fix.so">
+                <arm>
+                    <arm_name>gripper</arm_name>
+                    <!-- <palm_link>hand</palm_link> -->
+                    <palm_link>link7</palm_link>
+                    <gripper_link>left_finger</gripper_link>
+                    <gripper_link>right_finger</gripper_link>
+                </arm>
+            </plugin>
+        </gazebo>
+
+    </xacro:macro>
+</robot>

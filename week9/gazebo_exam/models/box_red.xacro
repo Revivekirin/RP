@@ -1,0 +1,54 @@
+<?xml version="1.0"?>
+<robot name="box" xmlns:xacro="http://wiki.ros.org/xacro">
+
+<xacro:arg name="box_size_x" default="0.05" />
+<xacro:arg name="box_size_y" default="0.05" />
+<xacro:arg name="box_size_z" default="0.06" />
+<xacro:arg name="box_offset_x" default="0.2" />
+<xacro:arg name="box_offset_y" default="0.0" />
+<xacro:arg name="box_offset_z" default="0.03" />
+
+
+<link name="base_link">
+  <collision>
+    <origin xyz="$(arg box_offset_x) $(arg box_offset_y) $(arg box_offset_z)" rpy="0 0 0"/>
+    <geometry>
+      <box size="$(arg box_size_x) $(arg box_size_y) $(arg box_size_z)" />
+    </geometry>
+    <surface>
+      <friction>
+        <ode>
+          <mu>100.0</mu>
+          <mu2>100.0</mu2>
+        </ode>
+      </friction>
+      <contact>
+        <ode/>
+      </contact>
+    </surface>
+  </collision>
+
+  <visual>
+    <origin xyz="$(arg box_offset_x) $(arg box_offset_y) $(arg box_offset_z)" rpy="0 0 0"/>
+    <geometry>
+      <box size="$(arg box_size_x) $(arg box_size_y) $(arg box_size_z)" />
+    </geometry>
+  </visual>
+
+  <inertial>
+    <origin xyz="$(arg box_offset_x) $(arg box_offset_y) $(arg box_offset_z)" rpy="0 0 0" />
+    <mass value="0.05" />
+    <inertia
+      ixx="0.05" ixy="0.0"  ixz="0.0"
+      iyy="0.05" iyz="0.0"
+      izz="0.05" />
+  </inertial>
+</link>
+
+<gazebo reference="base_link">
+  <material>Gazebo/Red</material>
+    <mu1>10</mu1>
+    <mu2>10</mu2>
+</gazebo>
+
+</robot>

@@ -1,0 +1,139 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://wiki.ros.org/xacro">
+
+    <xacro:include filename="$(find gazebo_exam)/urdf/robots/fr3/fr3_ros2_control.xacro"/>
+    <!-- <xacro:include filename="$(find gazebo_exam)/urdf/robots/materials.xacro"/> -->
+
+    <xacro:macro name="fr3_robot" params="
+        prefix
+        name
+        parent
+        joint_limits_parameters_file
+        kinematics_parameters_file
+        physical_parameters_file
+        visual_parameters_file
+        initial_positions_file
+        transmission_hw_interface:=hardware_interface/PositionJointInterface
+        sim_gazebo
+        *origin">
+
+        <!-- load configuration data from yaml file -->
+        <!-- <xacro:define_initialize visual_parameters_file="${visual_parameters_file}"/> -->
+        <xacro:property name="initial_positions_parameters" value="${load_yaml(initial_positions_file)}"/>
+        <xacro:property name="initial_positions" value="${initial_positions_parameters['7dof']}" scope="parent"/>
+        <xacro:property name="config_visual_parameters" value="${load_yaml(visual_parameters_file)}"/>
+        <xacro:property name="config_physical_parameters" value="${load_yaml(physical_parameters_file)}"/>
+        <xacro:property name="config_joint_limit_parameters" value="${load_yaml(joint_limits_parameters_file)}"/>
+        <xacro:property name="config_kinematics_parameters" value="${load_yaml(kinematics_parameters_file)}"/>
+        
+        <!-- link macro -->
+        <xacro:macro name="define_link" params="link_name physic_name visual_name config_visual_parameters config_physical_parameters gazebo_material">
+            <link name="${prefix}${link_name}">
+                <xacro:property name="sec_inertia_parameters" value="${config_physical_parameters}" />
+                <xacro:property name="sec_visual_parameters" value="${config_visual_parameters['mesh_files'][visual_name]}"/>
+                <xacro:if value="${visual_name != ''}">
+                    <visual>
+                        <origin xyz="0 0 0" rpy="0 0 0"/>
+                        <geometry>
+                            <xacro:property name="mesh" value="file://$(find ${sec_visual_parameters['visual']['mesh']['package']})/${sec_visual_parameters['visual']['mesh']['path']}" scope="parent"/>
+                            <mesh filename="${mesh}"/>
+                        </geometry>
+                    </visual>
+                    <collision>
+                        <origin xyz="0 0 0" rpy="0 0 0"/>
+                        <geometry>
+                            <xacro:property name="mesh" value="file://$(find ${sec_visual_parameters['collision']['mesh']['package']})/${sec_visual_parameters['collision']['mesh']['path']}" scope="parent"/>
+                            <mesh filename="${mesh}"/>
+                        </geometry>
+                    </collision>
+                </xacro:if>
+                <inertial>
+                    <mass value="${sec_inertia_parameters[physic_name]['mass']}"/>
+                    <xacro:property name="link_inertials" value="${sec_inertia_parameters[physic_name]}"/>
+                    <origin xyz="${link_inertials.origin.xyz}" rpy="${link_inertials.origin.rpy}"/>
+                    <inertia
+                        ixx="${sec_inertia_parameters[physic_name]['inertia']['xx']}" 
+                        iyy="${sec_inertia_parameters[physic_name]['inertia']['yy']}" 
+                        izz="${sec_inertia_parameters[physic_name]['inertia']['zz']}" 
+                        ixy="${sec_inertia_parameters[physic_name]['inertia']['xy']}" 
+                        iyz="${sec_inertia_parameters[physic_name]['inertia']['yz']}" 
+                        ixz="${sec_inertia_parameters[physic_name]['inertia']['xz']}" />
+                </inertial>
+            </link>
+        </xacro:macro>
+
+        <!-- joint macro -->
+        <xacro:macro name="define_joint" params="joint_type joint_index parent_link child_link config_kinematics_parameters config_joint_limit_parameters">
+            <xacro:property name="sec_kinematics" value="${config_kinematics_parameters}" />
+            <xacro:property name="sec_limits" value="${config_joint_limit_parameters}"/>
+
+            <joint name="${prefix}${joint_index}" type="${joint_type}">
+                <parent link="${prefix}${parent_link}"/>
+                <child link="${prefix}${child_link}"/>
+                <origin
+                    xyz="${sec_kinematics[joint_index]['kinematic']['x']} 
+                        ${sec_kinematics[joint_index]['kinematic']['y']} 
+                        ${sec_kinematics[joint_index]['kinematic']['z']}" 
+                    rpy="${sec_kinematics[joint_index]['kinematic']['roll']}
+                        ${sec_kinematics[joint_index]['kinematic']['pitch']}
+                        ${sec_kinematics[joint_index]['kinematic']['yaw']}"/>
+                        
+                <xacro:if value="${joint_type == 'revolute' or joint_type == 'continuous'}">
+                    <axis xyz="0 0 1"/>
+                    <dynamics damping="0.1" friction="10.0"/>
+                </xacro:if>
+
+                <xacro:if value="${joint_type == 'revolute'}">
+                    <limit
+                        lower="${sec_limits[joint_index]['limit']['lower']}" 
+                        upper="${sec_limits[joint_index]['limit']['upper']}"
+                        effort="${sec_limits[joint_index]['limit']['effort']}" 
+                        velocity="${sec_limits[joint_index]['limit']['velocity']}"/>
+                </xacro:if>
+            </joint>
+        </xacro:macro>
+
+        <!-- define link -->
+        <xacro:define_link link_name="link0" physic_name="link0" visual_name="link0" gazebo_material="" config_visual_parameters="${config_visual_parameters}" config_physical_parameters="${config_physical_parameters}"/>
+        <xacro:define_link link_name="link1" physic_name="link1" visual_name="link1" gazebo_material="" config_visual_parameters="${config_visual_parameters}" config_physical_parameters="${config_physical_parameters}"/>
+        <xacro:define_link link_name="link2" physic_name="link2" visual_name="link2" gazebo_material="" config_visual_parameters="${config_visual_parameters}" config_physical_parameters="${config_physical_parameters}"/>
+        <xacro:define_link link_name="link3" physic_name="link3" visual_name="link3" gazebo_material="" config_visual_parameters="${config_visual_parameters}" config_physical_parameters="${config_physical_parameters}"/>
+        <xacro:define_link link_name="link4" physic_name="link4" visual_name="link4" gazebo_material="" config_visual_parameters="${config_visual_parameters}" config_physical_parameters="${config_physical_parameters}"/>
+        <xacro:define_link link_name="link5" physic_name="link5" visual_name="link5" gazebo_material="" config_visual_parameters="${config_visual_parameters}" config_physical_parameters="${config_physical_parameters}"/>
+        <xacro:define_link link_name="link6" physic_name="link6" visual_name="link6" gazebo_material="" config_visual_parameters="${config_visual_parameters}" config_physical_parameters="${config_physical_parameters}"/>
+        <xacro:define_link link_name="link7" physic_name="link7" visual_name="link7" gazebo_material="" config_visual_parameters="${config_visual_parameters}" config_physical_parameters="${config_physical_parameters}"/>
+        <!-- <xacro:define_link link_name="link8" physic_name="link8" visual_name="link8" gazebo_material="" config_visual_parameters="${config_visual_parameters}" config_physical_parameters="${config_physical_parameters}"/> -->
+
+        <!-- define joint -->
+        <joint name="global" type="fixed">
+            <origin xyz="0 0 0" rpy="0 0 0"/>
+            <parent link="${parent}"/>
+            <child link="${prefix}link0"/>
+        </joint>
+
+        <xacro:define_joint joint_type="revolute" joint_index="joint0" parent_link="link0" child_link="link1" config_kinematics_parameters="${config_kinematics_parameters}" config_joint_limit_parameters="${config_joint_limit_parameters}"/>
+        <xacro:define_joint joint_type="revolute" joint_index="joint1" parent_link="link1" child_link="link2" config_kinematics_parameters="${config_kinematics_parameters}" config_joint_limit_parameters="${config_joint_limit_parameters}"/>
+        <xacro:define_joint joint_type="revolute" joint_index="joint2" parent_link="link2" child_link="link3" config_kinematics_parameters="${config_kinematics_parameters}" config_joint_limit_parameters="${config_joint_limit_parameters}"/>
+        <xacro:define_joint joint_type="revolute" joint_index="joint3" parent_link="link3" child_link="link4" config_kinematics_parameters="${config_kinematics_parameters}" config_joint_limit_parameters="${config_joint_limit_parameters}"/>
+        <xacro:define_joint joint_type="revolute" joint_index="joint4" parent_link="link4" child_link="link5" config_kinematics_parameters="${config_kinematics_parameters}" config_joint_limit_parameters="${config_joint_limit_parameters}"/>
+        <xacro:define_joint joint_type="revolute" joint_index="joint5" parent_link="link5" child_link="link6" config_kinematics_parameters="${config_kinematics_parameters}" config_joint_limit_parameters="${config_joint_limit_parameters}"/>
+        <xacro:define_joint joint_type="revolute" joint_index="joint6" parent_link="link6" child_link="link7" config_kinematics_parameters="${config_kinematics_parameters}" config_joint_limit_parameters="${config_joint_limit_parameters}"/>
+        
+        <!-- <joint name="${prefix}joint7" type="fixed">
+            <origin xyz="0 0 0.107" rpy="0 0 0"/>
+            <parent link="${pjrefix}link7"/>
+            <child link="${prefix}link8"/>
+        </joint> -->
+
+        <!-- Add URDF transmission elements (for ros_control) -->
+        <!-- <xacro:symphony_transmission prefix="${prefix}" hw_interface="${transmission_hw_interface}" symphony_type="${symphony_type}"/> -->
+        <xacro:fr3_ros2_control
+            name="${name}"
+            prefix="${prefix}"
+            config_joint_limit_parameters="${config_joint_limit_parameters}"
+            sim_gazebo="${sim_gazebo}"
+            initial_positions="${initial_positions}">
+        </xacro:fr3_ros2_control>
+
+    </xacro:macro>
+</robot>
