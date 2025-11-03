@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.5)
 project(gazebo_exam)
 
+set(CMAKE_CXX_STANDARD 17)
+
+
 # Default to C99
 if(NOT CMAKE_C_STANDARD)
   set(CMAKE_C_STANDARD 99)
