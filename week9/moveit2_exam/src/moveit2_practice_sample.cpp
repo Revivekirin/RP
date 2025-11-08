@@ -140,21 +140,91 @@ void waypoint_sample(moveit::planning_interface::MoveGroupInterface &move_group_
 void rectangle_sample(moveit::planning_interface::MoveGroupInterface &move_group_interface,
                       rclcpp::Node::SharedPtr node)
 {
-  
-  // waypoint_sample 을 참고하여 구현하시오
-  
+  auto logger = node->get_logger();
+  RCLCPP_INFO(logger, "rectangle_sample");
 
+  geometry_msgs::msg::Pose target_pose;
+  target_pose = list_to_pose(0.4, 0.2, 0.6, -M_PI/2, 0, 0);
+  go_to_pose_goal(move_group_interface, target_pose);
 
+  rclcpp::sleep_for(std::chrono::seconds(2));
+
+  geometry_msgs::msg::Pose start = target_pose;
+  moveit_msgs::msg::RobotTrajectory trajectory;
+  std::vector<geometry_msgs::msg::Pose> waypoints;
+
+  double side_length = 0.15;
+
+  waypoints.push_back(start);
+
+  start.position.x += side_length;
+  waypoints.push_back(start);
+
+  start.position.y += side_length;
+  waypoints.push_back(start);
+
+  start.position.x -= side_length;
+  waypoints.push_back(start);
+
+  start.position.y -= side_length;
+  waypoints.push_back(start);
+
+  double fraction = move_group_interface.computeCartesianPath(waypoints, 0.005, 0.0, trajectory);
+  RCLCPP_INFO(logger, "Rectangle Fraction score : fraction=%.3f", fraction);
+  
+  moveit::planning_interface::MoveGroupInterface::Plan cartesian_plan;
+  cartesian_plan.trajectory_ = trajectory;
+  
+  move_group_interface.execute(cartesian_plan);
 }
 
 void circle_sample(moveit::planning_interface::MoveGroupInterface &move_group_interface,
                    rclcpp::Node::SharedPtr node)
 {
+  auto logger = node->get_logger();
+  RCLCPP_INFO(logger, "circle_sample");
 
-  // waypoint_sample 을 참고하여 구현하시오
+  move_group_interface.setMaxVelocityScalingFactor(0.1);
+  move_group_interface.setMaxAccelerationScalingFactor(0.1);
 
+  geometry_msgs::msg::Pose target_pose;
+  target_pose = list_to_pose(0.4, 0.2, 0.6, -M_PI/2, 0, 0);
+  go_to_pose_goal(move_group_interface, target_pose);
 
+  rclcpp::sleep_for(std::chrono::seconds(2));
 
+  geometry_msgs::msg::Pose start = target_pose;
+  moveit_msgs::msg::RobotTrajectory trajectory;
+  std::vector<geometry_msgs::msg::Pose> waypoints;
+
+  double radius = 0.1;
+  int num_points = 36;
+
+  double center_x = start.position.x;
+  double center_y = start.position.y + radius;
+  double center_z = start.position.z;
+
+  for (int i = 0; i <= num_points; i++) {
+    geometry_msgs::msg::Pose circle_point = start;
+    double angle = -M_PI/2 + (2.0 * M_PI * i) / num_points;
+    
+    circle_point.position.x = center_x + radius * cos(angle);
+    circle_point.position.y = center_y + radius * sin(angle);
+    circle_point.position.z = center_z;
+    
+    waypoints.push_back(circle_point);
+  }
+
+  double fraction = move_group_interface.computeCartesianPath(waypoints, 0.005, 0.0, trajectory);
+  RCLCPP_INFO(logger, "Circle Fraction score : fraction=%.3f", fraction);
+  
+  moveit::planning_interface::MoveGroupInterface::Plan cartesian_plan;
+  cartesian_plan.trajectory_ = trajectory;
+  
+  move_group_interface.execute(cartesian_plan);
+
+  move_group_interface.setMaxVelocityScalingFactor(1.0);
+  move_group_interface.setMaxAccelerationScalingFactor(1.0);
 }
 
 int main(int argc, char** argv)
