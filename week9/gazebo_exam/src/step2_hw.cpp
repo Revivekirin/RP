@@ -1,7 +1,3 @@
-// student ID: 2022103275
-// name: 김지혜
-//step1_practice.cpp 를 참고하여 구현하세요
-
 #include <rclcpp/rclcpp.hpp>
 
 // MoveIt 2
@@ -12,45 +8,28 @@
 #include <iostream>
 
 // Location class definition for representing 2D coordinates 
-// usually used for block locations or target locations
 class Location {
 public:
-  double x{0.0};
-  double y{0.0};
+  double x;
+  double y;
   Location() = default;
   Location(double x_value, double y_value) : x(x_value), y(y_value) {}
 };
 
+// Block class definition for representing blocks entities
 class Block {
 public:
-  double width{0.05};
-  double length{0.05};
-  double height{0.06};
-  double radius{0.0}; 
+  double width;
+  double length;
+  double height;
+  double radius;
   Location location;
+  std::string shape; // "box", "cylinder", "triangle"
   Block() = default;
-  Block(double width_value, double length_value, double height_value, double radius_value, Location loc)
-    : width(width_value), length(length_value), height(height_value), radius(radius_value), location(loc) {}
-};
-
-class Cylinder {
-public:
-  double radius{0.025};
-  double height{0.06};
-  Location location;
-  Cylinder() = default;
-  Cylinder(double radius_value, double height_value, Location loc)
-    : radius(radius_value), height(height_value), location(loc) {}
-};
-
-class Triangle {
-public:
-  double bottom{0.05}; 
-  double height{0.06};  
-  Location location;
-  Triangle() = default;
-  Triangle(double bottom_value, double height_value, Location loc)
-    : bottom(bottom_value), height(height_value), location(loc) {}
+  Block(double width_value, double length_value, double height_value, double radius_value, 
+        Location location_value, std::string shape_type = "box")
+    : width(width_value), length(length_value), height(height_value), 
+      radius(radius_value), location(location_value), shape(shape_type) {}
 };
 
 // Function to convert position and orientation values to a Pose message
@@ -123,13 +102,14 @@ void initial_pose(moveit::planning_interface::MoveGroupInterface& arm_interface)
 
 void waypoint_sample(moveit::planning_interface::MoveGroupInterface &move_group_interface,
                      rclcpp::Node::SharedPtr node,
-                     std::vector<geometry_msgs::msg::Pose> waypoints)
+                     std::vector<geometry_msgs::msg::Pose> waypoints,
+                     double max_velocity_scaling = 1.0)
 {
   auto logger = node->get_logger();
   RCLCPP_INFO(logger, "way_point");
 
-  move_group_interface.setMaxVelocityScalingFactor(0.1);    
-  move_group_interface.setMaxAccelerationScalingFactor(0.1);
+  // Set velocity scaling for slower movement
+  move_group_interface.setMaxVelocityScalingFactor(max_velocity_scaling);
 
   moveit_msgs::msg::RobotTrajectory trajectory;
 
@@ -140,50 +120,16 @@ void waypoint_sample(moveit::planning_interface::MoveGroupInterface &move_group_
   cartesian_plan.trajectory_ = trajectory;
   
   move_group_interface.execute(cartesian_plan);
+  
+  // Reset to normal speed
+  move_group_interface.setMaxVelocityScalingFactor(1.0);
 }
 
-
-// Common parameters
-struct GraspParameters {
-  double z_offset = 0.40;       // Height above the block to approach
-  double tcp_to_tip = 0.185;  // Distance from the tool center point to the gripper tip
-  double open_width = 0.07;    // Gripper open width
-  double close_width = 0.025;    // Gripper close width
-  double roll = M_PI, pitch = 0.0, yaw = -M_PI/4; // Orientation angles         
-};
-
-GraspParameters grasp_for_block(const Block& block) {
-  GraspParameters params;
-  double grasp_dimension = block.length;
-
-  if (grasp_dimension <= 0.03)
-    params.close_width = 0.003; 
-  else
-    params.close_width = std::max(0.005, std::min(0.02, grasp_dimension - 0.03));
-
-  params.yaw = -M_PI/4;
-  return params;
-}
-
-
-GraspParameters grasp_for_cylinder(const Cylinder& cylinder) {
-  GraspParameters params;
-  params.close_width = std::max(0.018, std::min(0.030, 2.0*cylinder.radius - 0.010));
-  params.yaw = 0.0;
-  return params;
-}
-GraspParameters grasp_for_triangle(const Triangle& triangle) {
-  GraspParameters params;
-  params.close_width = std::max(0.018, std::min(0.030, triangle.bottom - 0.010));
-  params.yaw = -M_PI/6.0;
-  return params;
-}
-
-class PickAndLiftNode : public rclcpp::Node {
+class PickAndPlaceNode : public rclcpp::Node {
 public:
-  PickAndLiftNode(const rclcpp::NodeOptions & node_options = rclcpp::NodeOptions()) 
-  : Node("pick_and_lift", node_options) {
-    RCLCPP_INFO(this->get_logger(), "Pick-and-Lift Node started.");
+  PickAndPlaceNode(const rclcpp::NodeOptions & node_options = rclcpp::NodeOptions()) 
+  : Node("pick_and_place", node_options) {
+    RCLCPP_INFO(this->get_logger(), "Pick-and-Place Node started.");
   }
 
   void run() {
@@ -195,7 +141,7 @@ public:
     arm.setPlanningTime(10.0);
     rclcpp::sleep_for(std::chrono::seconds(1));
 
-    // ground plane
+    // Ground plane collision object
     moveit_msgs::msg::CollisionObject ground_plane;
     ground_plane.header.frame_id = arm.getPlanningFrame();
     ground_plane.id = "ground_plane";
@@ -214,193 +160,207 @@ public:
     planning_scene_interface.applyCollisionObjects({ground_plane});
 
     initial_pose(arm);
-    close_gripper(gripper, 0.0);
+    open_gripper(gripper);
+    
+    // Extra stabilization time after initialization
+    RCLCPP_INFO(this->get_logger(), "Initial stabilization...");
+    rclcpp::sleep_for(std::chrono::seconds(2));
 
-    std::vector<Location> init_xy = {
-      {0.4,  0.1}, {0.4,  0.0}, {0.4, -0.1}, {0.5,  0.1},
-      {0.5,  0.0}, {0.5, -0.1}, {0.6,  0.1}, {0.6,  0.0}
+    // Define all 8 objects with their initial and target locations
+    // Reordered: Boxes (1-6), Cylinder (7), Triangle (8)
+    // Order changed: box1, box2, box3, box4, box5, box6, cylinder, triangle
+    Block objects[] = {
+      Block(0.05, 0.05, 0.06, 0.03, Location(0.4, 0.1), "box"),       // 1: box1 (height: 0.06, z_offset: 0.03)
+      Block(0.05, 0.05, 0.06, 0.03, Location(0.4, 0.0), "box"),       // 2: box2 (height: 0.06, z_offset: 0.03)
+      Block(0.05, 0.025, 0.06, 0.03, Location(0.4, -0.1), "box"),     // 3: box3 (height: 0.06, z_offset: 0.03, needs rotation)
+      Block(0.05, 0.05, 0.07, 0.035, Location(0.5, -0.1), "box"),     // 4: box4 (height: 0.07, z_offset: 0.035)
+      Block(0.05, 0.05, 0.08, 0.04, Location(0.5, 0.1), "box"),       // 5: box5 (height: 0.08, z_offset: 0.04) 
+      Block(0.05, 0.05, 0.09, 0.045, Location(0.6, 0.0), "box"),      // 6: box6 (height: 0.09, z_offset: 0.045) 
+      Block(0.05, 0.05, 0.06, 0.03, Location(0.5, 0.0), "cylinder"),  // 7: cylinder (height: 0.06, z_offset: 0.03, slow approach)
+      Block(0.05, 0.05, 0.06, 0.03, Location(0.6, 0.1), "triangle")   // 8: triangle (height: 0.06, z_offset: 0.03, gentle grip)
     };
-    std::vector<Location> goal_xy = {
-      {-0.15, 0.45}, {-0.15, 0.55}, { 0.15, 0.45}, { 0.05, 0.55},
-      {-0.05, 0.45}, {-0.05, 0.55}, { 0.05, 0.45}, { 0.15, 0.55}
+
+    // Target locations
+    // Swapped: box5 and box6 order changed, box6 and cylinder targets swapped
+    Location target_locations[] = {
+      Location(-0.15, 0.45),  // 1: box1 target
+      Location(-0.15, 0.55),  // 2: box2 target
+      Location(0.15, 0.45),   // 3: box3 target
+      Location(0.15, 0.55),   // 4: box4 target
+      Location(0.05, 0.55),  // 5: box5 target 
+      Location(-0.05, 0.55),  // 6: box6 target 
+      Location(-0.05, 0.45),   // 7: cylinder target 
+      Location(0.05, 0.45)    // 8: triangle target
     };
 
-    Block   b1(0.05, 0.05, 0.06, 0.0, init_xy[0]);
-    Block   b2(0.05, 0.05, 0.06, 0.0, init_xy[1]);
-    Block   b3(0.05, 0.025,0.06, 0.0, init_xy[2]);
-    Block   b4(0.05, 0.05, 0.07, 0.0, init_xy[3]);
-    Cylinder c1(0.025, 0.06, init_xy[4]);
-    Block   b5(0.05, 0.05, 0.08, 0.0, init_xy[5]); 
-    Triangle t1(0.05, 0.06, init_xy[6]);
-    Block   b6(0.05, 0.05, 0.090,0.0, init_xy[7]); 
+    // Gripper values - adjusted triangle grip to be gentler
+    double gripper_values[] = {
+      0.0243,  // box1
+      0.020,   // box2
+      0.0100,  // box3
+      0.020,   // box4
+      0.020,   // box6
+      0.020,   // box5
+      0.0180,  // cylinder
+      0.0130   // triangle (gentler grip: 0.010 -> 0.0150)
+    };
 
-    // 1: b1
-    lift_block(node_ptr, arm, gripper, b1, 0.0243);
-    place_block(node_ptr, arm, gripper, goal_xy[0]);
+    // Pick and place all objects in new order
+    for (int i = 0; i < 8; i++) {
+      RCLCPP_INFO(this->get_logger(), "=== Processing Object %d (%s) ===", i + 1, objects[i].shape.c_str());
+      
+      // Special handling for cylinder (index 6) - slow approach
+      bool use_slow_approach = (i == 6);
+      
+      // Special handling for triangle (index 7) - gentle grip and slow approach
+      bool use_gentle_approach = (i == 7);
+      if (use_gentle_approach) {
+        use_slow_approach = true; // Triangle also needs slow approach
+      }
+      
+      // Special handling for box3 (index 2) - needs 90 degree rotation
+      bool rotate_90 = (i == 2);
+      
+      RCLCPP_INFO(this->get_logger(), "Gripper value for this object: %.4f", gripper_values[i]);
+      
+      // Pick object from initial location
+      pick_object(node_ptr, arm, gripper, objects[i], gripper_values[i], use_slow_approach);
+      
+      // Place object at target location
+      place_object(node_ptr, arm, gripper, target_locations[i], objects[i].height, rotate_90);
+      
+      // Return to initial pose between objects
+      initial_pose(arm);
+      
+      rclcpp::sleep_for(std::chrono::milliseconds(500));
+    }
 
-    // 2: b2
-    lift_block(node_ptr, arm, gripper, b2, 0.0243);
-    place_block(node_ptr, arm, gripper, goal_xy[1]);
-
-    // 3: b3
-    lift_block(node_ptr, arm, gripper, b3, 0.0243);
-    place_block(node_ptr, arm, gripper, goal_xy[2]);
-
-    // 4: b4
-    lift_block(node_ptr, arm, gripper, b4, 0.0243);
-    place_block(node_ptr, arm, gripper, goal_xy[3]);
-
-    // 5: c1
-    lift_cylinder(node_ptr, arm, gripper, c1);
-    place_cylinder(node_ptr, arm, gripper, goal_xy[4]);
-
-    // 6: b5
-    lift_block(node_ptr, arm, gripper, b5, 0.0243);
-    place_block(node_ptr, arm, gripper, goal_xy[5]);
-
-    // 7: t1
-    lift_triangle(node_ptr, arm, gripper, t1);
-    place_triangle(node_ptr, arm, gripper, goal_xy[6]);
-
-    // 8: b6
-    lift_block(node_ptr, arm, gripper, b6, 0.0243);
-    place_block(node_ptr, arm, gripper, goal_xy[7]);
-
-    initial_pose(arm);
+    RCLCPP_INFO(this->get_logger(), "All objects placed successfully!");
   }
 
 private:
-  void lift_block(rclcpp::Node::SharedPtr node,
-                  moveit::planning_interface::MoveGroupInterface& arm_interface,
-                  moveit::planning_interface::MoveGroupInterface& gripper_interface,
-                  Block block, double value) {
-
-    auto gp = grasp_for_block(block);
-    geometry_msgs::msg::Pose target_pose1 = list_to_pose(block.location.x, block.location.y, 0.4, M_PI, 0, -M_PI/4);
-    geometry_msgs::msg::Pose target_pose2 = list_to_pose(block.location.x, block.location.y, block.height + 0.185, M_PI, 0, -M_PI/4);
-    
-    std::vector<geometry_msgs::msg::Pose> waypoints1;
-    std::vector<geometry_msgs::msg::Pose> waypoints2;
-    std::vector<geometry_msgs::msg::Pose> waypoints3;
-
-    waypoints1.push_back(target_pose1);
-    waypoint_sample(arm_interface, node, waypoints1);
-    open_gripper(gripper_interface);
-
-    waypoints2.push_back(target_pose2);
-    waypoint_sample(arm_interface, node, waypoints2);
-    close_gripper(gripper_interface, gp.close_width);
-
-    waypoints3.push_back(target_pose1);
-    waypoint_sample(arm_interface, node, waypoints3);
-
-  }
-  void place_block(rclcpp::Node::SharedPtr node,
+  void pick_object(rclcpp::Node::SharedPtr node,
                    moveit::planning_interface::MoveGroupInterface& arm_interface,
                    moveit::planning_interface::MoveGroupInterface& gripper_interface,
-                   Location location) {
+                   Block block, double gripper_value, bool use_slow_approach = false) {
+
+    double grasp_height = block.height + 0.185;
     
-    const double case_top_z = 0.03;
-    GraspParameters gp;
-    geometry_msgs::msg::Pose target_pose1 = list_to_pose(location.x, location.y, gp.z_offset, gp.roll, gp.pitch, gp.yaw);
-    geometry_msgs::msg::Pose target_pose2 = list_to_pose(location.x, location.y, 0.125 + 0.185 + 0.005, gp.roll, gp.pitch, gp.yaw);
+    double yaw_angle = -M_PI/4;  // Default for all objects
+    if (block.shape == "triangle") {
+      yaw_angle = -M_PI/4 + M_PI/6;  // -45+ 30 = -15 (to grip edge/vertex)
+      RCLCPP_INFO(node->get_logger(), "Triangle: adjusting yaw to grip edge (yaw: %.3f rad = %.1f deg)", 
+                  yaw_angle, yaw_angle * 180.0 / M_PI);
+    }
     
-    std::vector<geometry_msgs::msg::Pose> waypoints1;
-    std::vector<geometry_msgs::msg::Pose> waypoints2;
+    RCLCPP_INFO(node->get_logger(), "Object: %s, Height: %.3f, Grasp height: %.3f", 
+                block.shape.c_str(), block.height, grasp_height);
     
-    waypoints1.push_back(target_pose1);
-    waypoints1.push_back(target_pose2);
-    waypoint_sample(arm_interface, node, waypoints1);
+    // Approach position (above object, safe height)
+    geometry_msgs::msg::Pose approach_pose = list_to_pose(
+      block.location.x, block.location.y, 0.35, M_PI, 0, yaw_angle
+    );
+    
+    // Grasp position (using original working formula)
+    geometry_msgs::msg::Pose grasp_pose = list_to_pose(
+      block.location.x, block.location.y, grasp_height, M_PI, 0, yaw_angle
+    );
+    
+    // Lift position (above object with object in gripper)
+    geometry_msgs::msg::Pose lift_pose = list_to_pose(
+      block.location.x, block.location.y, 0.35, M_PI, 0, yaw_angle
+    );
+
+    std::vector<geometry_msgs::msg::Pose> waypoints;
+
+    // Move to approach position
+    waypoints.clear();
+    waypoints.push_back(approach_pose);
+    waypoint_sample(arm_interface, node, waypoints);
+    
+    // Open gripper
     open_gripper(gripper_interface);
-
-    waypoints2.push_back(target_pose1);
-    waypoint_sample(arm_interface, node, waypoints2);
-
-  }
-
-    // 원기둥
-  void lift_cylinder(rclcpp::Node::SharedPtr node,
-                    moveit::planning_interface::MoveGroupInterface& arm,
-                    moveit::planning_interface::MoveGroupInterface& gripper,
-                    const Cylinder& cyl)
-  {
-    auto gp = grasp_for_cylinder(cyl);
-    gp.close_width = std::clamp(gp.close_width, 0.010, 0.020);
-    auto approach = list_to_pose(cyl.location.x, cyl.location.y, gp.z_offset, gp.roll, gp.pitch, gp.yaw);
-    auto descend  = list_to_pose(cyl.location.x, cyl.location.y, cyl.height/2.0 + gp.tcp_to_tip, gp.roll, gp.pitch, gp.yaw);
-
-    arm.setMaxVelocityScalingFactor(0.05);
-    arm.setMaxAccelerationScalingFactor(0.05);
-
-    waypoint_sample(arm, node, {approach});
-    open_gripper(gripper);
-    waypoint_sample(arm, node, {approach, descend});
-    close_gripper(gripper, gp.close_width);
-    waypoint_sample(arm, node, {descend, approach});
-  }
-
-  void place_cylinder(rclcpp::Node::SharedPtr node,
-                      moveit::planning_interface::MoveGroupInterface& arm,
-                      moveit::planning_interface::MoveGroupInterface& gripper,
-                      Location location)
-  {
-    const double case_top_z = 0.03;
-    GraspParameters gp = GraspParameters{};
-    gp.yaw = 0.0;
-    auto approach = list_to_pose(location.x, location.y, gp.z_offset, gp.roll, gp.pitch, gp.yaw);
-
-    const double safe_margin = 0.010;   
-    const double cylinder_height = 0.06;
-    auto descend  = list_to_pose(location.x, location.y,
-                                case_top_z + cylinder_height/2 + safe_margin,
-                                gp.roll, gp.pitch, gp.yaw);
-
-    arm.setMaxVelocityScalingFactor(0.05);
-    arm.setMaxAccelerationScalingFactor(0.05);
-
-    waypoint_sample(arm, node, {approach, descend});
-    open_gripper(gripper);
     rclcpp::sleep_for(std::chrono::milliseconds(300));
-    waypoint_sample(arm, node, {descend, approach});
+
+    // Move down to grasp position
+    // Use slower speed if requested (for cylinder and triangle)
+    waypoints.clear();
+    waypoints.push_back(grasp_pose);
+    if (use_slow_approach) {
+      RCLCPP_INFO(node->get_logger(), "Using slow approach for this object");
+      waypoint_sample(arm_interface, node, waypoints, 0.3); // 30% speed
+    } else {
+      waypoint_sample(arm_interface, node, waypoints);
+    }
+    rclcpp::sleep_for(std::chrono::milliseconds(300));
+
+    // Close gripper
+    close_gripper(gripper_interface, gripper_value);
+    
+    // Extra wait time for triangle to stabilize grip
+    if (block.shape == "triangle") {
+      rclcpp::sleep_for(std::chrono::milliseconds(800));
+      RCLCPP_INFO(node->get_logger(), "Triangle: extra stabilization time");
+    } else {
+      rclcpp::sleep_for(std::chrono::milliseconds(500));
+    }
+
+    // Lift object (slower for triangle)
+    waypoints.clear();
+    waypoints.push_back(lift_pose);
+    if (block.shape == "triangle") {
+      waypoint_sample(arm_interface, node, waypoints, 0.3); // Lift triangle slowly
+      RCLCPP_INFO(node->get_logger(), "Triangle: slow lift");
+    } else {
+      waypoint_sample(arm_interface, node, waypoints);
+    }
   }
 
-  // 삼각기둥
-  void lift_triangle(rclcpp::Node::SharedPtr node,
-                    moveit::planning_interface::MoveGroupInterface& arm,
-                    moveit::planning_interface::MoveGroupInterface& gripper,
-                    const Triangle& tri)
-  {
-    auto gp = grasp_for_triangle(tri);
-    auto approach = list_to_pose(tri.location.x, tri.location.y, gp.z_offset, gp.roll, gp.pitch, gp.yaw);
-    auto descend  = list_to_pose(tri.location.x, tri.location.y, tri.height/2.0 + gp.tcp_to_tip, gp.roll, gp.pitch, gp.yaw);
+  void place_object(rclcpp::Node::SharedPtr node,
+                    moveit::planning_interface::MoveGroupInterface& arm_interface,
+                    moveit::planning_interface::MoveGroupInterface& gripper_interface,
+                    Location target_location, double object_height, bool rotate_90 = false) {
 
-    waypoint_sample(arm, node, {approach});
-    open_gripper(gripper);
-    waypoint_sample(arm, node, {approach, descend});
-    close_gripper(gripper, gp.close_width);
-    waypoint_sample(arm, node, {descend, approach});
+    // Calculate yaw angle based on rotation requirement
+    double yaw_angle = rotate_90 ? (-M_PI/4 + M_PI/2) : -M_PI/4;
+
+    // Approach position above target
+    geometry_msgs::msg::Pose approach_pose = list_to_pose(
+      target_location.x, target_location.y, 0.35, M_PI, 0, yaw_angle
+    );
+    
+    // Place position at target
+    geometry_msgs::msg::Pose place_pose = list_to_pose(
+      target_location.x, target_location.y, 0.125 + 0.185, M_PI, 0, yaw_angle
+    );
+
+    std::vector<geometry_msgs::msg::Pose> waypoints;
+
+    // Move to approach position above target
+    waypoints.clear();
+    waypoints.push_back(approach_pose);
+    waypoint_sample(arm_interface, node, waypoints);
+
+    // Move down to place position
+    waypoints.clear();
+    waypoints.push_back(place_pose);
+    waypoint_sample(arm_interface, node, waypoints);
+    rclcpp::sleep_for(std::chrono::milliseconds(300));
+
+    // Open gripper to release object
+    open_gripper(gripper_interface);
+    rclcpp::sleep_for(std::chrono::milliseconds(500));
+
+    // Move back up
+    waypoints.clear();
+    waypoints.push_back(approach_pose);
+    waypoint_sample(arm_interface, node, waypoints);
   }
-  void place_triangle(rclcpp::Node::SharedPtr node,
-                      moveit::planning_interface::MoveGroupInterface& arm,
-                      moveit::planning_interface::MoveGroupInterface& gripper,
-                      Location location)
-  {
-    const double case_top_z = 0.03;
-    GraspParameters gp = GraspParameters{};
-    gp.yaw = -M_PI/6.0;
-    auto approach = list_to_pose(location.x, location.y, gp.z_offset, gp.roll, gp.pitch, gp.yaw);
-    auto descend  = list_to_pose(location.x, location.y, case_top_z + gp.tcp_to_tip, gp.roll, gp.pitch, gp.yaw);
-
-    waypoint_sample(arm, node, {approach, descend});
-    open_gripper(gripper);
-    waypoint_sample(arm, node, {descend, approach});
-  }
-
 };
 
 int main(int argc, char** argv) {
   rclcpp::init(argc, argv);
-  auto node = std::make_shared<PickAndLiftNode>();
+  auto node = std::make_shared<PickAndPlaceNode>();
 
   std::thread spinner([node]() {
     rclcpp::spin(node);
