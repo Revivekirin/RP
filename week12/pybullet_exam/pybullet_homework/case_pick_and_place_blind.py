@@ -145,7 +145,7 @@ box_2 = p.loadURDF("models/box2.xacro", basePosition=[0.4, 0.1, 0.66])
 box_0 = p.loadURDF("models/box.xacro", basePosition=[0.5, 0.0, 0.66])
 triangle = p.loadURDF("models/triangle.xacro", basePosition=[0.5, 0.1, 0.66])
 
-# Load case (FIXED - useFixedBase=True)
+# FIXED - useFixedBase=True
 case_collision = p.createCollisionShape(
     shapeType=p.GEOM_MESH,
     fileName="models/case.obj", 
@@ -193,13 +193,12 @@ CASE_HEIGHT = 0.64
 
 # Define pick and place tasks
 # Object mapping: (object_id, initial_pos, target_pos, grasp_height_offset, place_rotation, grasp_rotation, is_triangle)
-# Triangle: grasp_rotation을 조정하여 두 모서리를 잡도록 설정
 tasks = [
     (box_4, [0.3, 0.1, 0.66], [-0.15, 0.35, 0.70], 0.0, 0.0, 0.0, False),           # 1: box4 (grasp higher)
     (box_5, [0.3, 0.0, 0.66], [-0.15, 0.25, 0.70], 0.0, 0.0, 0.0, False),              # 2: box5
     (box_6, [0.3, -0.1, 0.66], [0.15, 0.25, 0.70], 0.0, np.pi/2, 0.0, False),         # 3: box6 (90도 회전)
-    (box_2, [0.4, 0.1, 0.66], [0.05, 0.35, 0.70], 0.0, 0.0, 0.0, False),            # 4: box2 (grasp higher)
-    (cylinder_0, [0.4, 0.0, 0.66], [-0.03, 0.24, 0.70], 0.0, 0.0, 0.0, False),        # 5: cylinder (x: -0.05 -> -0.03, y:0.25->0.27)
+    (box_2, [0.4, 0.1, 0.66], [0.05, 0.35, 0.70], 0.0, 0.0, 0.0, False),            # 4: box2 (grasp hig> -0.03, y:0.25->0.27)her)
+    (cylinder_0, [0.4, 0.0, 0.66], [-0.03, 0.24, 0.70], 0.0, 0.0, 0.0, False),        # 5: cylinder (x: -0.05 -
     (box_3, [0.4, -0.1, 0.66], [-0.05, 0.35, 0.70], 0.0, 0.0, 0.0, False),            # 6: box3
     (box_0, [0.5, 0.0, 0.66], [0.15, 0.35, 0.70], 0.0, 0.0, 0.0, False),              # 7: box
     (triangle, [0.5, 0.1, 0.66], [0.05, 0.25, 0.70], 0.02, -np.pi/12, np.pi/6, True),       # 8: triangle (grasp_rotation=np.p/6, place_rotation=-np.pi/12)
